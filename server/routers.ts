@@ -6,7 +6,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { getDb, ensureOneiraSeedData } from "./db";
-import { appSettings, dailyReports, monthlyTargets, openingNodes, operationSummaries, productRanks, stores, storeSuggestions } from "../drizzle/schema";
+import { appSettings, dailyReports, dailyReviews as dailyReviewsTable, monthlyTargets, openingNodes, operationSummaries, productRanks, productSuggestions as productSuggestionsTable, stores, storeSuggestions } from "../drizzle/schema";
 
 const identitySchema = z.object({ role: z.enum(["manager", "admin", "store"]), storeName: z.string().optional() });
 const managerGuard = (role: string) => {
@@ -142,7 +142,13 @@ export const appRouter = router({
       const summaries = isStore
         ? await db.select().from(operationSummaries).where(eq(operationSummaries.storeName, input.storeName!)).orderBy(desc(operationSummaries.period))
         : await db.select().from(operationSummaries).orderBy(desc(operationSummaries.period));
-      return { stores: visibleStores, reports, openingNodes: nodes, targets, products, summaries, syncedAt: new Date() };
+      const productSuggestions = isStore
+        ? await db.select().from(productSuggestionsTable).where(eq(productSuggestionsTable.storeName, input.storeName!)).orderBy(desc(productSuggestionsTable.createdAt))
+        : await db.select().from(productSuggestionsTable).orderBy(desc(productSuggestionsTable.createdAt));
+      const dailyReviews = isStore
+        ? await db.select().from(dailyReviewsTable).where(eq(dailyReviewsTable.storeName, input.storeName!)).orderBy(desc(dailyReviewsTable.reviewDate))
+        : [];
+      return { stores: visibleStores, reports, openingNodes: nodes, targets, products, summaries, productSuggestions, dailyReviews, syncedAt: new Date() };
     }),
 
     upsertReport: publicProcedure.input(z.object({
@@ -240,12 +246,66 @@ export const appRouter = router({
       return { success: true };
     }),
 
-    upsertProduct: publicProcedure.input(z.object({ role: z.enum(["manager", "admin"]), id: z.number().optional(), storeName: z.string().min(1), month: z.string().min(7), productName: z.string().min(1), sales: z.number(), category: z.enum(["畅销", "滞销"]) })).mutation(async ({ input }) => {
-      managerGuard(input.role);
+    upsertProduct: publicProcedure.input(z.object({ role: z.enum(["manager", "admin", "store"]), identityStoreName: z.string().optional(), id: z.number().optional(), storeName: z.string().min(1), month: z.string().min(7), productName: z.string().min(1), sales: z.number(), category: z.enum(["畅销", "滞销"]) })).mutation(async ({ input }) => {
+      if (!canStoreAccess(input.role, input.identityStoreName, input.storeName)) throw new TRPCError({ code: "FORBIDDEN", message: "店长只能管理绑定门店的销售排行" });
       const db = await dbOrThrow();
       const values = { storeName: input.storeName, month: input.month, productName: input.productName, sales: input.sales, category: input.category };
       if (input.id) await db.update(productRanks).set(values).where(eq(productRanks.id, input.id));
       else await db.insert(productRanks).values(values);
+      return { success: true };
+    }),
+
+    deleteProduct: publicProcedure.input(z.object({ role: z.enum(["manager", "admin", "store"]), identityStoreName: z.string().optional(), id: z.number() })).mutation(async ({ input }) => {
+      const db = await dbOrThrow();
+      const old = await db.select().from(productRanks).where(eq(productRanks.id, input.id)).limit(1);
+      if (!old[0]) return { success: true };
+      if (!canStoreAccess(input.role, input.identityStoreName, old[0].storeName)) throw new TRPCError({ code: "FORBIDDEN", message: "店长只能管理绑定门店的销售排行" });
+      await db.delete(productRanks).where(eq(productRanks.id, input.id));
+      return { success: true };
+    }),
+
+    upsertProductSuggestion: publicProcedure.input(z.object({ role: z.enum(["manager", "admin", "store"]), identityName: z.string().min(1), identityStoreName: z.string().optional(), id: z.number().optional(), storeName: z.string().min(1), month: z.string().min(7), productName: z.string().min(1), type: z.enum(["建议下市", "建议上新"]), reason: z.string().min(1) })).mutation(async ({ input }) => {
+      if (!canStoreAccess(input.role, input.identityStoreName, input.storeName)) throw new TRPCError({ code: "FORBIDDEN", message: "店长只能为绑定门店提交产品建议" });
+      const db = await dbOrThrow();
+      if (input.id) {
+        const old = await db.select().from(productSuggestionsTable).where(eq(productSuggestionsTable.id, input.id)).limit(1);
+        if (!old[0]) throw new TRPCError({ code: "NOT_FOUND", message: "产品建议不存在，可能已被删除" });
+        if (!canManageSuggestion(input.role, input.identityName, input.identityStoreName, old[0])) throw new TRPCError({ code: "FORBIDDEN", message: "店长只能修改自己提交的产品建议" });
+      }
+      const values = { storeName: input.storeName, month: input.month, productName: input.productName, type: input.type, reason: input.reason, authorName: input.identityName };
+      if (input.id) await db.update(productSuggestionsTable).set(values).where(eq(productSuggestionsTable.id, input.id));
+      else await db.insert(productSuggestionsTable).values(values);
+      return { success: true };
+    }),
+
+    deleteProductSuggestion: publicProcedure.input(z.object({ role: z.enum(["manager", "admin", "store"]), identityName: z.string(), identityStoreName: z.string().optional(), id: z.number() })).mutation(async ({ input }) => {
+      const db = await dbOrThrow();
+      const old = await db.select().from(productSuggestionsTable).where(eq(productSuggestionsTable.id, input.id)).limit(1);
+      if (!old[0]) return { success: true };
+      if (!canManageSuggestion(input.role, input.identityName, input.identityStoreName, old[0])) throw new TRPCError({ code: "FORBIDDEN", message: "店长只能管理自己提交的产品建议" });
+      await db.delete(productSuggestionsTable).where(eq(productSuggestionsTable.id, input.id));
+      return { success: true };
+    }),
+
+    upsertDailyReview: publicProcedure.input(z.object({ role: z.literal("store"), identityName: z.string().min(1), identityStoreName: z.string().min(1), storeName: z.string().min(1), id: z.number().optional(), reviewDate: z.string().min(10), content: z.string().min(1) })).mutation(async ({ input }) => {
+      const db = await dbOrThrow();
+      if (!canStoreAccess(input.role, input.identityStoreName, input.storeName)) throw new TRPCError({ code: "FORBIDDEN", message: "只能记录绑定门店的日复盘" });
+      const values = { storeName: input.storeName, reviewerName: input.identityName, reviewDate: input.reviewDate, content: input.content.trim() };
+      if (input.id) await db.update(dailyReviewsTable).set(values).where(eq(dailyReviewsTable.id, input.id));
+      else {
+        const old = await db.select({ id: dailyReviewsTable.id }).from(dailyReviewsTable).where(and(eq(dailyReviewsTable.storeName, input.storeName), eq(dailyReviewsTable.reviewerName, input.identityName), eq(dailyReviewsTable.reviewDate, input.reviewDate))).limit(1);
+        if (old[0]) await db.update(dailyReviewsTable).set(values).where(eq(dailyReviewsTable.id, old[0].id));
+        else await db.insert(dailyReviewsTable).values(values);
+      }
+      return { success: true };
+    }),
+
+    deleteDailyReview: publicProcedure.input(z.object({ role: z.literal("store"), identityName: z.string(), identityStoreName: z.string().min(1), storeName: z.string(), id: z.number() })).mutation(async ({ input }) => {
+      const db = await dbOrThrow();
+      const old = await db.select().from(dailyReviewsTable).where(eq(dailyReviewsTable.id, input.id)).limit(1);
+      if (!old[0]) return { success: true };
+      if (old[0].storeName !== input.identityStoreName || old[0].storeName !== input.storeName || old[0].reviewerName !== input.identityName) throw new TRPCError({ code: "FORBIDDEN", message: "只能删除自己的日复盘" });
+      await db.delete(dailyReviewsTable).where(eq(dailyReviewsTable.id, input.id));
       return { success: true };
     }),
 

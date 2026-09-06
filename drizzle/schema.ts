@@ -116,6 +116,34 @@ export const productRanks = mysqlTable("oneira_product_ranks", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const productSuggestions = mysqlTable("oneira_product_suggestions", {
+  id: int("id").autoincrement().primaryKey(),
+  storeName: varchar("storeName", { length: 120 }).notNull(),
+  month: varchar("month", { length: 7 }).notNull(),
+  productName: varchar("productName", { length: 160 }).notNull(),
+  type: mysqlEnum("type", ["建议下市", "建议上新"]).notNull(),
+  reason: text("reason").notNull(),
+  authorName: varchar("authorName", { length: 80 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const dailyReviews = mysqlTable(
+  "oneira_daily_reviews",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    storeName: varchar("storeName", { length: 120 }).notNull(),
+    reviewerName: varchar("reviewerName", { length: 80 }).notNull(),
+    reviewDate: varchar("reviewDate", { length: 10 }).notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    reviewerDateUnique: uniqueIndex("oneira_daily_review_unique").on(table.storeName, table.reviewerName, table.reviewDate),
+  }),
+);
+
 export const operationSummaries = mysqlTable(
   "oneira_operation_summaries",
   {
@@ -152,4 +180,6 @@ export type OpeningNode = typeof openingNodes.$inferSelect;
 export type MonthlyTarget = typeof monthlyTargets.$inferSelect;
 export type ProductRank = typeof productRanks.$inferSelect;
 export type OperationSummary = typeof operationSummaries.$inferSelect;
+export type ProductSuggestion = typeof productSuggestions.$inferSelect;
+export type DailyReview = typeof dailyReviews.$inferSelect;
 export type StoreSuggestion = typeof storeSuggestions.$inferSelect;
