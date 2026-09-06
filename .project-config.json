@@ -1,0 +1,42 @@
+{
+  "build_command": "pnpm run build",
+  "capabilities": [
+    "server",
+    "db",
+    "user"
+  ],
+  "dev_command": "pnpm run dev",
+  "env_vars": {
+    "DATABASE_URL": "mysql://hesNEQHaK2ko83G.root:KIn2H3jZb9E59SkWc2Tl@gateway04.us-east-1.prod.aws.tidbcloud.com:4000/PPCFC4eLgus38Dw5zAfTbP?ssl={\"rejectUnauthorized\":true}"
+  },
+  "experiments": [
+    "no_db_push"
+  ],
+  "git_remote": {
+    "repo_url": "https://7f0548f6b28a1758d9bf7be630d36cb4.artifacts.cloudflare.net/git/prod/PPCFC4eLgus38Dw5zAfTbP.git",
+    "expiration": "2026-09-06T08:52:43.251Z",
+    "token": "art_v2_x_3de4728b4797bb0f52c004a6d084c1e45e585cd2?expires=1788684763",
+    "backend": "GIT_BACKEND_ARTIFACTS"
+  },
+  "name": "oneira-store-ops",
+  "path": "/home/ubuntu/oneira-store-ops",
+  "port": 3000,
+  "secrets": {
+    "BUILT_IN_FORGE_API_KEY": "a5YsYJr9EGA3XM9mHUHsBv",
+    "BUILT_IN_FORGE_API_URL": "https://forge.manus.ai",
+    "JWT_SECRET": "i5UipXhAbmhFfiW9iQoHHN",
+    "OAUTH_SERVER_URL": "https://api.manus.im",
+    "OWNER_NAME": "johnwood3385",
+    "OWNER_OPEN_ID": "oVTKLybu7EUDTBBPHP6dqN",
+    "VITE_ANALYTICS_ENDPOINT": "https://manus-analytics.com",
+    "VITE_ANALYTICS_WEBSITE_ID": "9aea1cf0-0c1f-493a-a46d-8124c70587df",
+    "VITE_APP_ID": "PPCFC4eLgus38Dw5zAfTbP",
+    "VITE_APP_LOGO": "",
+    "VITE_APP_TITLE": "Oneira 梦面包 · 门店运营工作台",
+    "VITE_FRONTEND_FORGE_API_KEY": "FR2oviPQfNo3xMQ38q5cZS",
+    "VITE_FRONTEND_FORGE_API_URL": "https://forge.manus.ai",
+    "VITE_OAUTH_PORTAL_URL": "https://manus.im"
+  },
+  "template_id": "web-db-user",
+  "test_command": "pnpm test"
+}
