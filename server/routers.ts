@@ -271,7 +271,7 @@ export const appRouter = router({
       return { success: true };
     }),
 
-    upsertTarget: publicProcedure.input(z.object({ role: z.literal("manager"), storeName: z.string().min(1), month: z.string().min(7), monthlyTarget: z.number(), week1: z.number(), week2: z.number(), week3: z.number(), week4: z.number(), week5: z.number() })).mutation(async ({ input }) => {
+    upsertTarget: publicProcedure.input(z.object({ role: z.enum(["manager", "admin"]), storeName: z.string().min(1), month: z.string().min(7), monthlyTarget: z.number(), week1: z.number(), week2: z.number(), week3: z.number(), week4: z.number(), week5: z.number() })).mutation(async ({ input }) => {
       managerGuard(input.role);
       const db = await dbOrThrow();
       const old = await db.select({ id: monthlyTargets.id }).from(monthlyTargets).where(and(eq(monthlyTargets.storeName, input.storeName), eq(monthlyTargets.month, input.month))).limit(1);

@@ -7,6 +7,12 @@ describe("ops store access rules", () => {
     expect(canStoreAccess("admin", undefined, "滨江店")).toBe(true);
   });
 
+  it("treats admin as a global editor for report-like records", () => {
+    const record = { authorName: "张店长", storeName: "西湖店" };
+    expect(canStoreAccess("admin", undefined, "滨江店")).toBe(true);
+    expect(canManageSuggestion("admin", "管理员", undefined, record)).toBe(true);
+  });
+
   it("allows a store manager to access only the bound store", () => {
     expect(canStoreAccess("store", "西湖店", "西湖店")).toBe(true);
     expect(canStoreAccess("store", "西湖店", "滨江店")).toBe(false);
