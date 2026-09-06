@@ -16,16 +16,16 @@ describe("ops store access rules", () => {
     expect(canStoreAccess("store", undefined, "西湖店")).toBe(false);
   });
 
-  it("allows managers and admins to manage every suggestion", () => {
-    const suggestion = { authorName: "张店长", storeName: "西湖店" };
-    expect(canManageSuggestion("manager", "其他人", undefined, suggestion)).toBe(true);
-    expect(canManageSuggestion("admin", "其他人", undefined, suggestion)).toBe(true);
+  it("allows managers and admins to manage every suggestion or issue", () => {
+    const record = { authorName: "张店长", storeName: "西湖店" };
+    expect(canManageSuggestion("manager", "其他人", undefined, record)).toBe(true);
+    expect(canManageSuggestion("admin", "其他人", undefined, record)).toBe(true);
   });
 
-  it("allows a store manager to manage only their own store suggestion", () => {
-    const suggestion = { authorName: "张店长", storeName: "西湖店" };
-    expect(canManageSuggestion("store", "张店长", "西湖店", suggestion)).toBe(true);
-    expect(canManageSuggestion("store", "李店长", "西湖店", suggestion)).toBe(false);
-    expect(canManageSuggestion("store", "张店长", "滨江店", suggestion)).toBe(false);
+  it("allows a store manager to manage only their own suggestion or issue", () => {
+    const record = { authorName: "张店长", storeName: "西湖店" };
+    expect(canManageSuggestion("store", "张店长", "西湖店", record)).toBe(true);
+    expect(canManageSuggestion("store", "李店长", "西湖店", record)).toBe(false);
+    expect(canManageSuggestion("store", "张店长", "滨江店", record)).toBe(false);
   });
 });

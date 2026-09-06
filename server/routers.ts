@@ -6,7 +6,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { getDb, ensureOneiraSeedData } from "./db";
-import { appSettings, dailyReports, dailyReviews as dailyReviewsTable, monthlyTargets, openingNodes, operationSummaries, productRanks, productSuggestions as productSuggestionsTable, stores, storeSuggestions } from "../drizzle/schema";
+import { appSettings, dailyReports, dailyReviews as dailyReviewsTable, monthlyTargets, openingNodes, operationSummaries, productRanks, productSuggestions as productSuggestionsTable, stores, storeIssues, storeSuggestions } from "../drizzle/schema";
 
 const identitySchema = z.object({ role: z.enum(["manager", "admin", "store"]), storeName: z.string().optional() });
 const managerGuard = (role: string) => {
@@ -83,6 +83,38 @@ export const appRouter = router({
         : db.select().from(storeSuggestions).orderBy(desc(storeSuggestions.createdAt));
     }),
 
+    listIssues: publicProcedure.input(identitySchema.extend({ identityName: z.string().optional() })).query(async ({ input }) => {
+      const db = await dbOrThrow();
+      const isStore = input.role === "store" && input.storeName;
+      return isStore
+        ? db.select().from(storeIssues).where(eq(storeIssues.storeName, input.storeName!)).orderBy(desc(storeIssues.createdAt))
+        : db.select().from(storeIssues).orderBy(desc(storeIssues.createdAt));
+    }),
+
+    submitIssue: publicProcedure.input(z.object({ role: z.literal("store"), identityName: z.string().min(1), storeName: z.string().min(1), title: z.string().min(1).max(160), content: z.string().min(1) })).mutation(async ({ input }) => {
+      const db = await dbOrThrow();
+      const store = await db.select({ name: stores.name }).from(stores).where(eq(stores.name, input.storeName)).limit(1);
+      if (!store[0]) throw new TRPCError({ code: "NOT_FOUND", message: "绑定门店不存在，请重新选择门店" });
+      const inserted = await db.insert(storeIssues).values({ storeName: input.storeName, authorName: input.identityName, title: input.title, content: input.content, status: "待处理" });
+      return { success: true, id: Number(inserted[0].insertId) };
+    }),
+
+    updateStoreIssue: publicProcedure.input(z.object({ role: z.enum(["manager", "admin"]), id: z.number(), status: z.enum(["待处理", "处理中", "已解决"]), solver: z.string().optional(), solution: z.string().optional(), deadline: z.string().optional() })).mutation(async ({ input }) => {
+      managerGuard(input.role);
+      const db = await dbOrThrow();
+      await db.update(storeIssues).set({ status: input.status, solver: input.solver || null, solution: input.solution || null, deadline: input.deadline || null }).where(eq(storeIssues.id, input.id));
+      return { success: true };
+    }),
+
+    deleteIssue: publicProcedure.input(z.object({ role: z.enum(["manager", "admin", "store"]), identityName: z.string().min(1), identityStoreName: z.string().optional(), id: z.number() })).mutation(async ({ input }) => {
+      const db = await dbOrThrow();
+      const old = await db.select().from(storeIssues).where(eq(storeIssues.id, input.id)).limit(1);
+      if (!old[0]) return { success: true };
+      if (!canManageSuggestion(input.role, input.identityName, input.identityStoreName, old[0])) throw new TRPCError({ code: "FORBIDDEN", message: "只能删除自己提交的问题" });
+      await db.delete(storeIssues).where(eq(storeIssues.id, input.id));
+      return { success: true };
+    }),
+
     submitSuggestion: publicProcedure.input(z.object({ role: z.literal("store"), identityName: z.string().min(1), storeName: z.string().min(1), title: z.string().min(1).max(160), content: z.string().min(1) })).mutation(async ({ input }) => {
       const db = await dbOrThrow();
       const store = await db.select({ name: stores.name }).from(stores).where(eq(stores.name, input.storeName)).limit(1);
@@ -148,7 +180,10 @@ export const appRouter = router({
       const dailyReviews = isStore
         ? await db.select().from(dailyReviewsTable).where(eq(dailyReviewsTable.storeName, input.storeName!)).orderBy(desc(dailyReviewsTable.reviewDate))
         : [];
-      return { stores: visibleStores, reports, openingNodes: nodes, targets, products, summaries, productSuggestions, dailyReviews, syncedAt: new Date() };
+      const issues = isStore
+        ? await db.select().from(storeIssues).where(eq(storeIssues.storeName, input.storeName!)).orderBy(desc(storeIssues.createdAt))
+        : await db.select().from(storeIssues).orderBy(desc(storeIssues.createdAt));
+      return { stores: visibleStores, reports, openingNodes: nodes, targets, products, summaries, productSuggestions, dailyReviews, issues, syncedAt: new Date() };
     }),
 
     upsertReport: publicProcedure.input(z.object({

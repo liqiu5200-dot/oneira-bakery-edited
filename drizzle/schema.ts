@@ -172,6 +172,21 @@ export const storeSuggestions = mysqlTable("oneira_store_suggestions", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+
+export const storeIssues = mysqlTable("oneira_store_issues", {
+  id: int("id").autoincrement().primaryKey(),
+  storeName: varchar("storeName", { length: 120 }).notNull(),
+  authorName: varchar("authorName", { length: 80 }).notNull(),
+  title: varchar("title", { length: 160 }).notNull(),
+  content: text("content").notNull(),
+  status: mysqlEnum("status", ["待处理", "处理中", "已解决"]).default("待处理").notNull(),
+  solver: varchar("solver", { length: 80 }),
+  solution: text("solution"),
+  deadline: varchar("deadline", { length: 10 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Store = typeof stores.$inferSelect;
@@ -183,3 +198,4 @@ export type OperationSummary = typeof operationSummaries.$inferSelect;
 export type ProductSuggestion = typeof productSuggestions.$inferSelect;
 export type DailyReview = typeof dailyReviews.$inferSelect;
 export type StoreSuggestion = typeof storeSuggestions.$inferSelect;
+export type StoreIssue = typeof storeIssues.$inferSelect;
